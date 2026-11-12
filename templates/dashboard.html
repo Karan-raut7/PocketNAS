@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - MediaVault{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+  <!-- Upload Panel -->
+  <section class="card upload-card">
+    <h2 class="section-title">Upload Media</h2>
+    <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
+      <div class="form-group file-input-group">
+        <label for="file">Select image or video</label>
+        <input type="file" id="file" name="file" accept="image/*,video/*" required />
+      </div>
+      <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+  </section>
+
+  <!-- Gallery Header -->
+  <div class="section-header">
+    <h3>Your Media Files</h3>
+    {% if files %}
+      <span class="file-count">{{ files|length }} items</span>
+    {% endif %}
+  </div>
+
+  <!-- Media Grid -->
+  {% if files %}
+    <div class="media-grid">
+      {% for file in files %}
+        <div class="media-card">
+          <div class="media-preview">
+            {% if file.is_video %}
+              <video controls preload="metadata">
+                <source src="{{ file.url }}" type="video/mp4">
+              </video>
+            {% else %}
+              <img src="{{ file.url }}" alt="{{ file.name }}" loading="lazy" />
+            {% endif %}
+          </div>
+          <div class="media-footer">
+            <span class="filename" title="{{ file.name }}">{{ file.name }}</span>
+            <form action="/delete/{{ file.name }}" method="POST" class="delete-form">
+              <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this file?');">
+                Delete
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <p>No media uploaded yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

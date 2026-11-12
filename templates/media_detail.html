@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file.name }} - MediaVault{% endblock %}
+
+{% block content %}
+<div class="media-viewer-container">
+  <div class="viewer-header">
+    <a href="/dashboard" class="back-link">&larr; Back to Dashboard</a>
+    <div class="viewer-actions">
+      <a href="{{ file.url }}" download class="btn btn-secondary">Download</a>
+      <form action="/delete/{{ file.name }}" method="POST" style="margin: 0;">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this media permanently?');">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="viewer-card">
+    <div class="media-display">
+      {% if file.is_video %}
+        <video controls autoplay class="fullscreen-media">
+          <source src="{{ file.url }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      {% else %}
+        <img src="{{ file.url }}" alt="{{ file.name }}" class="fullscreen-media" />
+      {% endif %}
+    </div>
+
+    <div class="viewer-info">
+      <h2 class="viewer-filename">{{ file.name }}</h2>
+      {% if file.size %}
+        <span class="file-size">{{ file.size }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
