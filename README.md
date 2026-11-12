@@ -31,7 +31,7 @@ Build your own personal storage ecosystem with control over your files and infra
 | FastAPI | Backend API framework |
 | Uvicorn | ASGI server |
 | HTML / CSS / JavaScript | Web interface |
-| SQLite | Data persistence (where configured) |
+| PostgreSQL | Data persistence (where configured) |
 
 ---
 
