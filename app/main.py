@@ -4,12 +4,13 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Form, UploadFile, File, status
 from fastapi.staticfiles import StaticFiles
 
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 
+from app.config import STORAGE_DIR
 from app.database import get_db
 from app.models.user import User
 from app.utils.security import hash_password, verify_password
@@ -28,14 +29,21 @@ app.add_middleware(SessionMiddleware, secret_key="pocket-server-secret-key-chang
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 
-UPLOAD_DIR = BASE_DIR / "uploads"
+# Dashboard uploads live in the same storage root as API uploads,
+# in one folder per user: <STORAGE_DIR>/users/<username>/
+UPLOAD_DIR = STORAGE_DIR / "users"
 
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def user_file_path(user: str, filename: str) -> Path:
+    # Keep only the plain file name so nothing can escape the user's folder
+    return UPLOAD_DIR / user / Path(filename).name
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+# Note: /uploads is no longer mounted publicly. Files are served through /media (login required).
 
 
 
@@ -173,7 +181,7 @@ async def dashboard_page(request: Request):
         if is_video or is_image:
             media_list.append({
                 "name": filename,
-                "url": f"/uploads/{user}/{filename}",
+                "url": f"/media/{filename}",
                 "is_video": is_video
             })
 
@@ -193,7 +201,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     user_upload_dir.mkdir(parents=True, exist_ok=True)
 
     if file.filename:
-        destination_path = user_upload_dir / file.filename
+        destination_path = user_file_path(user, file.filename)
         with destination_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
@@ -206,8 +214,8 @@ async def delete_file(request: Request, filename: str):
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
     # Only delete from the logged-in user's folder
-    target = UPLOAD_DIR / user / filename
-    if target.exists():
+    target = user_file_path(user, filename)
+    if target.is_file():
         target.unlink()
 
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
@@ -218,14 +226,14 @@ async def view_media(request: Request, filename: str):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    file_path = UPLOAD_DIR / user / filename
-    if not file_path.exists():
+    file_path = user_file_path(user, filename)
+    if not file_path.is_file():
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
     is_video = filename.lower().endswith((".mp4", ".webm", ".ogg", ".mov"))
     file_data = {
-        "name": filename,
-        "url": f"/uploads/{user}/{filename}",
+        "name": file_path.name,
+        "url": f"/media/{file_path.name}",
         "is_video": is_video
     }
 
@@ -234,3 +242,16 @@ async def view_media(request: Request, filename: str):
         name="media_detail.html",
         context={"request": request, "user": user, "file": file_data}
     )
+
+@app.get("/media/{filename}")
+async def get_media(request: Request, filename: str):
+    # Login-protected replacement for the old public /uploads mount
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    file_path = user_file_path(user, filename)
+    if not file_path.is_file():
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    return FileResponse(path=file_path)
